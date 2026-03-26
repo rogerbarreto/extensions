@@ -433,6 +433,10 @@ internal sealed class OpenAIResponsesChatClient : IChatClient
                             anyFunctions = true;
                             lastRole = ChatRole.Assistant;
                             break;
+
+                        case ReasoningResponseItem:
+                            lastMessageId = outputItemAddedUpdate.Item.Id;
+                            break;
                     }
 
                     goto default;

@@ -319,6 +319,23 @@ public class OpenAIResponseClientTests
             Assert.Equal("o4-mini-2025-04-16", updates[i].ModelId);
             Assert.Null(updates[i].AdditionalProperties);
 
+            // Verify MessageId is correctly set from the output item IDs
+            if (i is (<= 1))
+            {
+                // Response lifecycle events (created, in_progress) have no output item yet
+                Assert.Null(updates[i].MessageId);
+            }
+            else if (i is (>= 2 and <= 11))
+            {
+                // Reasoning output item events should carry the reasoning item's ID
+                Assert.Equal("rs_68b5ebabc0088196afb9fa86b487732d0698ecbf1b9f2704", updates[i].MessageId);
+            }
+            else
+            {
+                // Message output item events should carry the message item's ID
+                Assert.Equal("msg_68b5ebae5a708196b74b94f22ca8995e0698ecbf1b9f2704", updates[i].MessageId);
+            }
+
             if (i is (>= 4 and <= 8))
             {
                 // Reasoning updates
@@ -570,8 +587,14 @@ public class OpenAIResponseClientTests
 
         List<ChatMessage> chatHistory = [];
         chatHistory.AddMessages(updates);
-        var assistantMessage = chatHistory.Single(m => m.Role == ChatRole.Assistant);
-        var coalescedReasoning = assistantMessage.Contents.OfType<TextReasoningContent>().Single();
+
+        // Reasoning and text are separate output items with distinct MessageIds,
+        // so they produce separate ChatMessages when coalesced.
+        var assistantMessages = chatHistory.Where(m => m.Role == ChatRole.Assistant).ToList();
+        Assert.Equal(2, assistantMessages.Count);
+
+        var reasoningMessage = assistantMessages.First(m => m.Contents.OfType<TextReasoningContent>().Any());
+        var coalescedReasoning = reasoningMessage.Contents.OfType<TextReasoningContent>().Single();
         Assert.Equal("First, let's analyze the problem.", coalescedReasoning.Text);
         Assert.Equal("secret-encrypted-data-abc123", coalescedReasoning.ProtectedData);
     }
